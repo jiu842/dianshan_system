@@ -1,0 +1,44 @@
+{
+  "gmv": {
+    "today": 2847500,
+    "yesterday": 2732000,
+    "growth": 4.2,
+    "weekly_trend": [
+      2.45,
+      2.51,
+      2.38,
+      2.62,
+      2.71,
+      2.85,
+      2.73
+    ]
+  },
+  "traffic": {
+    "pv": 200000,
+    "uv": 32958,
+    "avg_session_duration": 386,
+    "bounce_rate": 42.3
+  },
+  "conversion": {
+    "overall_rate": 1.86,
+    "cart_rate": 7.6,
+    "pay_rate": 2.2,
+    "trend": "up"
+  },
+  "repurchase": {
+    "rate": 1.14,
+    "target": 20.0,
+    "active_users": 1449
+  },
+  "longtail": {
+    "exposure_share": 6.8,
+    "target": 15.0,
+    "improvement": 4.5
+  },
+  "ad_efficiency": {
+    "roi": 2.34,
+    "ctr": 3.1,
+    "cost_per_conversion": 12.5
+  },
+  "timestamp": "2026-04-19T18:23:29.483319"
+}
