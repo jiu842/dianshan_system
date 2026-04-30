@@ -37,27 +37,22 @@ def root():
 
 @app.post("/predict")
 def predict(req: PredictRequest):
-    # 构造特征（与训练时一致，需要5个特征）
-    # 特征顺序: actions, browse, purchases, days_since, cross_rate
+    # 对高购买次数进行衰减处理
+    # 购买次数>2时，对数化处理，降低极端值的影响
+    purchases_capped = req.purchases if req.purchases <= 1 else 1 + math.log2(req.purchases)
+    
     features = np.array([[
-        req.actions,      # 行为次数
-        req.browse,       # 浏览商品数
-        req.purchases,    # 历史购买次数
-        30.0,             # days_since（最近一次购买天数，默认30天）
-        0.2               # cross_rate（跨类目购买率，默认0.2）
+        req.actions,
+        req.browse,
+        purchases_capped,  # 使用衰减后的值
+        30.0,
+        0.2
     ]])
     
-    # 获取原始预测值（raw score，范围约 -4.5 到 4.4）
     raw_score = model.predict(features)[0]
-    
-    # 通过 sigmoid 函数转换为概率
-    # sigmoid(x) = 1 / (1 + e^(-x))
     prob = 1.0 / (1.0 + math.exp(-raw_score))
-    
-    # 确保概率在合理范围内（1% - 99%）
     prob = max(0.01, min(0.99, prob))
     
-    # 根据概率确定策略
     if prob > 0.7:
         strategy = "立即唤醒"
     elif prob > 0.4:
@@ -65,14 +60,12 @@ def predict(req: PredictRequest):
     else:
         strategy = "长期培育"
     
-    # 打印日志（方便调试）
-    print(f"输入: act={req.actions}, brw={req.browse}, pur={req.purchases}")
+    print(f"输入: act={req.actions}, brw={req.browse}, pur={req.purchases}→{purchases_capped:.2f}")
     print(f"原始分: {raw_score:.4f} → 概率: {prob*100:.2f}% → 策略: {strategy}")
     
     return {
         "probability": round(prob, 3),
         "strategy": strategy
     }
-
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
