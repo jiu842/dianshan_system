@@ -1,10 +1,12 @@
 {
   "stats": {
     "total_users": 127251,
-    "returning_users": 1449,
-    "returning_rate": 1.14,
-    "avg_clicks_returning":156,
-    "avg_clicks_non_returning": 0.24
+        "returning_users": 1449,
+        "returning_rate": 1.14,
+        "avg_clicks_returning": 156,
+        "avg_clicks_non_returning": 0.24,
+        "avg_items_returning": 25,
+        "avg_purchases": 2
   },
   "item_rate": [
     {
