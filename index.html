@@ -204,7 +204,7 @@
                         <td>
                             <div class="input-group"><input id="in-act" value="156" onchange="handleInputChange()"><span>行为次数</span></div>
                             <div class="input-group"><input id="in-brw" value="25" onchange="handleInputChange()"><span>浏览商品数</span></div>
-                            <div class="input-group"><input id="in-pur" value="1" onchange="handleInputChange()"><span>历史购买</span></div>
+                            <div class="input-group"><input id="in-pur" value="2" onchange="handleInputChange()"><span>历史购买</span></div>
                             <button class="calc-btn" onclick="calcRep()"><i class="fas fa-calculator"></i>计算并联动</button>
                         </td>
                         <td><div class="algorithm-desc"><strong>🤖 LightGBM + FastAPI</strong> <span class="model-badge">后端推理</span><br>后端加载LightGBM模型<br>• >0.7 → 立即唤醒<br>• 0.4-0.7 → 适时引导<br>• <0.4 → 长期培育</div></td>
@@ -548,7 +548,7 @@
                     document.getElementById('in-brw').value = systemState.repurchase.browse;
                     document.getElementById('in-pur').value = systemState.repurchase.purchases;
                     document.getElementById('avgRepClick').textContent = systemState.repurchase.actions.toFixed(1);
-                    document.getElementById('avgNewClick').textContent = d.stats.avg_clicks_non_returning?.toFixed(1) || '28.7';
+                    document.getElementById('avgNewClick').textContent = (d.stats.avg_clicks_non_returning || 28.7).toFixed(1);
                 }
                 if (d.item_rate && charts.rate) {
                     charts.rate.setOption({
@@ -572,9 +572,6 @@
                         `<tr><td class="highlight">${i+1}. ${f.name}</td><td class="highlight">${(f.importance*100).toFixed(1)}%</td></tr>`
                     ).join('');
                 }
-document.getElementById('in-act').value = 156;
-document.getElementById('in-brw').value = 25;
-document.getElementById('in-pur').value = 2;
             }
             
             handleInputChange();
@@ -589,26 +586,51 @@ document.getElementById('in-pur').value = 2;
 
         // 调用FastAPI后端进行复购预测
         async function predictRepurchase(actions, browse, purchases) {
-            try {
-                const response = await fetch('http://127.0.0.1:8000/predict', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ actions: actions, browse: browse, purchases: purchases })
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    document.getElementById('out-rep-confidence').textContent = `LightGBM 模型推理 | 复购概率 ${(data.probability * 100).toFixed(1)}%`;
-                    document.getElementById('out-rep-strategy').value = data.strategy;
-                    return data.probability;
-                } else {
-                    console.warn('API 调用失败，使用公式计算');
-                    return Math.min(purchases / 3, 1) * 0.5 + Math.min(browse / 30, 1) * 0.3 + Math.min(actions / 150, 1) * 0.2;
-                }
-            } catch (error) {
-                console.error('API 调用出错:', error);
-                return Math.min(purchases / 3, 1) * 0.5 + Math.min(browse / 30, 1) * 0.3 + Math.min(actions / 150, 1) * 0.2;
-            }
+           try {
+        const response = await fetch('http://127.0.0.1:8000/predict', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                actions: actions, 
+                browse: browse, 
+                purchases: purchases 
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const prob = data.probability;
+            document.getElementById('out-rep-confidence').textContent = 
+                `LightGBM 模型推理 | 复购概率 ${(prob * 100).toFixed(1)}%`;
+            document.getElementById('out-rep-strategy').value = data.strategy;
+            document.getElementById('out-rep').value = `概率: ${(prob * 100).toFixed(1)}%`;
+            return prob;
+        } else {
+            throw new Error('API 返回错误');
+        }
+    } catch (error) {
+        console.warn('API 调用失败，使用本地规则引擎:', error);
+        // 改进的本地计算逻辑
+        const actionsScore = Math.min(actions / 200, 1); // 归一化行为次数（假设200为高活跃）
+        const browseScore = Math.min(browse / 50, 1);   // 归一化浏览商品数（假设50为高浏览）
+        const purchaseScore = Math.min(purchases / 5, 1); // 归一化历史购买（假设5次为高购买）
+        
+        // 加权计算复购概率
+        const prob = purchaseScore * 0.4 + browseScore * 0.35 + actionsScore * 0.25;
+        
+        document.getElementById('out-rep-confidence').textContent = 
+            `本地规则引擎 | 复购概率 ${(prob * 100).toFixed(1)}%`;
+        
+        let strategy;
+        if (prob > 0.7) strategy = '立即唤醒';
+        else if (prob > 0.4) strategy = '适时引导';
+        else strategy = '长期培育';
+        
+        document.getElementById('out-rep-strategy').value = strategy;
+        document.getElementById('out-rep').value = `概率: ${(prob * 100).toFixed(1)}%`;
+        
+        return prob;
+    }
         }
 
         // 同步输入框到系统状态
@@ -725,28 +747,39 @@ function updateABTestMetrics(gini, repProb, efficiency) {
 
         // 中游复购时机识别
         async function calcRep() {
-            await fullSystemUpdate();
-            const prob = await predictRepurchase(
-                systemState.repurchase.actions,
-                systemState.repurchase.browse,
-                systemState.repurchase.purchases
-            );
-            const pp = (prob * 100).toFixed(1);
-            let s, d;
-            if (prob > 0.7) {
-                s = '立即唤醒'; d = `高潜(${pp}%)，24h内大额优惠券+Push`;
-                document.getElementById('monitorRepStrategy').textContent = '立即唤醒：大额券';
-            } else if (prob > 0.4) {
-                s = '适时引导'; d = `潜力(${pp}%)，7天内中等优惠券`;
-                document.getElementById('monitorRepStrategy').textContent = '适时引导：中等券';
-            } else {
-                s = '长期培育'; d = `低概率(${pp}%)，内容种草`;
-                document.getElementById('monitorRepStrategy').textContent = '长期培育：内容';
-            }
-            document.getElementById('out-rep').value = `概率: ${pp}%`;
-            document.getElementById('out-rep-strategy').value = s;
-            document.getElementById('final-r').textContent = `${s}：${pp}%`;
-            document.getElementById('detail-r').textContent = d;
+            handleInputChange();
+    
+    const actions = systemState.repurchase.actions;
+    const browse = systemState.repurchase.browse;
+    const purchases = systemState.repurchase.purchases;
+    
+    console.log('复购预测输入:', { actions, browse, purchases }); // 调试日志
+    
+    const prob = await predictRepurchase(actions, browse, purchases);
+    const pp = (prob * 100).toFixed(1);
+    
+    let s, d;
+    if (prob > 0.7) {
+        s = '立即唤醒'; 
+        d = `高潜用户(${pp}%)，建议24h内推送大额优惠券+个性化Push`;
+        document.getElementById('monitorRepStrategy').textContent = '立即唤醒：大额券+Push';
+    } else if (prob > 0.4) {
+        s = '适时引导'; 
+        d = `潜力用户(${pp}%)，建议7天内推送中等优惠券+跨类目推荐`;
+        document.getElementById('monitorRepStrategy').textContent = '适时引导：中等券+推荐';
+    } else {
+        s = '长期培育'; 
+        d = `待培育用户(${pp}%)，建议内容种草+新客专享价`;
+        document.getElementById('monitorRepStrategy').textContent = '长期培育：内容营销';
+    }
+    
+    document.getElementById('out-rep').value = `概率: ${pp}%`;
+    document.getElementById('out-rep-strategy').value = s;
+    document.getElementById('final-r').textContent = `${s}：${pp}%`;
+    document.getElementById('detail-r').textContent = d;
+    
+    // 更新综合决策
+    updateSyn();
         }
 
         // 末端广告投放时段匹配
