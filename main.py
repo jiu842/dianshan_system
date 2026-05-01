@@ -54,17 +54,19 @@ def predict(req: PredictRequest):
     
     prob = max(0.05, min(0.90, prob))
     
-    if prob > 0.7:
-        strategy = "立即唤醒"
-    elif prob > 0.4:
-        strategy = "适时引导"
-    else:
-        strategy = "长期培育"
+    
+if prob > 0.7:    
+    strategy = "立即唤醒"    
+elif prob > 0.4:    
+    strategy = "适时引导"    
+else:
+    strategy = "长期培育"
     
     print(f"模型: {model_prob*100:.1f}% | 规则: {rule_prob*100:.1f}% | 混合: {prob*100:.2f}%")
     
     return {
         "probability": round(prob, 3),
         "strategy": strategy
-    }if __name__ == "__main__":
+    }
+if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
