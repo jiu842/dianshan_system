@@ -52,7 +52,7 @@ def predict(req: PredictRequest):
     
     prob = model_prob * 0.3 + rule_prob * 0.7
     
-    prob = max(0.01, min(0.92, prob))
+    prob = max(0.05, min(0.90, prob))
     
     if prob > 0.7:
         strategy = "立即唤醒"
