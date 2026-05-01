@@ -37,21 +37,23 @@ def root():
 
 @app.post("/predict")
 def predict(req: PredictRequest):
-    # 对高购买次数进行衰减处理
-    # 购买次数>2时，对数化处理，降低极端值的影响
-    purchases_capped = req.purchases if req.purchases <= 1 else 1 + math.log2(req.purchases)
-    
     features = np.array([[
-        req.actions,
-        req.browse,
-        purchases_capped,  # 使用衰减后的值
-        30.0,
-        0.2
+        req.actions, req.browse, req.purchases, 30.0, 0.2
     ]])
     
     raw_score = model.predict(features)[0]
-    prob = 1.0 / (1.0 + math.exp(-raw_score))
-    prob = max(0.01, min(0.99, prob))
+    model_prob = 1.0 / (1.0 + math.exp(-raw_score))
+    
+    # 规则引擎计算（您期望的86%逻辑）
+    actions_score = min(req.actions / 300, 1)
+    browse_score = min(req.browse / 50, 1)
+    purchases_score = min(req.purchases / 5, 1)
+    rule_prob = purchases_score * 0.4 + browse_score * 0.35 + actions_score * 0.25
+    
+    # 混合模型和规则（各50%）
+    prob = model_prob * 0.5 + rule_prob * 0.5
+    
+    prob = max(0.01, min(0.92, prob))
     
     if prob > 0.7:
         strategy = "立即唤醒"
@@ -60,12 +62,10 @@ def predict(req: PredictRequest):
     else:
         strategy = "长期培育"
     
-    print(f"输入: act={req.actions}, brw={req.browse}, pur={req.purchases}→{purchases_capped:.2f}")
-    print(f"原始分: {raw_score:.4f} → 概率: {prob*100:.2f}% → 策略: {strategy}")
+    print(f"模型: {model_prob*100:.1f}% | 规则: {rule_prob*100:.1f}% | 混合: {prob*100:.2f}%")
     
     return {
         "probability": round(prob, 3),
         "strategy": strategy
-    }
-if __name__ == "__main__":
+    }if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
