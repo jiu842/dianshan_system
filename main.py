@@ -45,13 +45,12 @@ def predict(req: PredictRequest):
     model_prob = 1.0 / (1.0 + math.exp(-raw_score))
     
     # 规则引擎计算（您期望的86%逻辑）
-    actions_score = min(req.actions / 300, 1)
-    browse_score = min(req.browse / 50, 1)
-    purchases_score = min(req.purchases / 5, 1)
-    rule_prob = purchases_score * 0.4 + browse_score * 0.35 + actions_score * 0.25
+        actions_score = min(req.actions / 200, 1)
+    browse_score = min(req.browse / 40, 1)
+    purchases_score = min(req.purchases / 3, 1)
+    rule_prob = purchases_score * 0.6 + browse_score * 0.25 + actions_score * 0.15
     
-    # 混合模型和规则（各50%）
-    prob = model_prob * 0.5 + rule_prob * 0.5
+    prob = model_prob * 0.3 + rule_prob * 0.7
     
     prob = max(0.01, min(0.92, prob))
     
