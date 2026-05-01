@@ -8,7 +8,6 @@ import math
 
 app = FastAPI(title="复购预测API")
 
-# 允许前端调用
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,7 +15,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 加载模型
 print("加载模型中...")
 model = lgb.Booster(model_file='lightgbm_model.txt')
 print("模型加载成功")
@@ -40,33 +38,25 @@ def predict(req: PredictRequest):
     features = np.array([[
         req.actions, req.browse, req.purchases, 30.0, 0.2
     ]])
-    
     raw_score = model.predict(features)[0]
     model_prob = 1.0 / (1.0 + math.exp(-raw_score))
-    
-    # 规则引擎计算（您期望的86%逻辑）
-        actions_score = min(req.actions / 200, 1)
+    actions_score = min(req.actions / 200, 1)
     browse_score = min(req.browse / 40, 1)
     purchases_score = min(req.purchases / 3, 1)
     rule_prob = purchases_score * 0.6 + browse_score * 0.25 + actions_score * 0.15
-    
     prob = model_prob * 0.3 + rule_prob * 0.7
-    
     prob = max(0.05, min(0.90, prob))
-    
-    
-if prob > 0.7:    
-    strategy = "立即唤醒"    
-elif prob > 0.4:    
-    strategy = "适时引导"    
-else:
-    strategy = "长期培育"
-    
+    if prob > 0.7:
+        strategy = "立即唤醒"
+    elif prob > 0.4:
+        strategy = "适时引导"
+    else:
+        strategy = "长期培育"
     print(f"模型: {model_prob*100:.1f}% | 规则: {rule_prob*100:.1f}% | 混合: {prob*100:.2f}%")
-    
     return {
         "probability": round(prob, 3),
         "strategy": strategy
     }
+
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
